@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chatbot de Mascotas (Asistente Gemini)</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #e0f2f7; /* Azul claro suave */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            color: #333;
+        }
+        .chat-container {
+            background-color: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+            width: 90%;
+            max-width: 650px;
+            height: 85vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-sizing: border-box;
+        }
+        .chat-header {
+            background-color: #2196F3; /* Azul vibrante */
+            color: white;
+            padding: 18px 20px;
+            font-size: 1.4em;
+            font-weight: bold;
+            text-align: center;
+            border-top-left-radius: 12px;
+            border-top-right-radius: 12px;
+        }
+        .chat-messages {
+            flex-grow: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 10px; /* Espacio entre mensajes */
+            scroll-behavior: smooth;
+        }
+        .message {
+            padding: 12px 18px;
+            border-radius: 20px;
+            max-width: 75%;
+            word-wrap: break-word;
+            line-height: 1.5;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+        }
+        .message.user {
+            background-color: #e3f2fd; /* Azul muy claro */
+            color: #212121;
+            align-self: flex-end;
+            margin-left: auto;
+            border-bottom-right-radius: 5px; /* Pequeño ajuste para la esquina */
+        }
+        .message.bot {
+            background-color: #f1f8e9; /* Verde muy claro */
+            color: #212121;
+            align-self: flex-start;
+            margin-right: auto;
+            border-bottom-left-radius: 5px; /* Pequeño ajuste para la esquina */
+        }
+        .chat-input {
+            display: flex;
+            padding: 15px 20px;
+            border-top: 1px solid #eee;
+            background-color: #fdfdfd;
+        }
+        .chat-input input {
+            flex-grow: 1;
+            padding: 12px 18px;
+            border: 1px solid #c5cae9; /* Azul claro */
+            border-radius: 25px;
+            margin-right: 12px;
+            font-size: 1.05em;
+            outline: none;
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+        .chat-input input:focus {
+            border-color: #2196F3;
+            box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.2);
+        }
+        .chat-input button {
+            background-color: #4CAF50; /* Verde */
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 1.05em;
+            font-weight: bold;
+            transition: background-color 0.3s, transform 0.2s;
+        }
+        .chat-input button:hover {
+            background-color: #43A047; /* Verde más oscuro */
+            transform: translateY(-1px);
+        }
+        .chat-input button:active {
+            transform: translateY(0);
+        }
+        .typing-indicator {
+            font-style: italic;
+            color: #888;
+            padding: 12px 18px;
+            margin-left: 10px;
+            align-self: flex-start;
+            background-color: #f1f8e9;
+            border-radius: 20px;
+            border-bottom-left-radius: 5px;
+            max-width: fit-content;
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            Chatbot de Mascotas 🐾 Asistente Gemini
+        </div>
+        <div class="chat-messages" id="chat-messages">
+            </div>
+        <div class="chat-input">
+            <input type="text" id="user-input" placeholder="Escribe tu mensaje aquí..." autofocus>
+            <button id="send-button">Enviar</button>
+        </div>
+    </div>
+
+    <script>
+        const chatMessages = document.getElementById('chat-messages');
+        const userInput = document.getElementById('user-input');
+        const sendButton = document.getElementById('send-button');
+        
+        let conversationHistory = []; 
+
+        function addMessage(sender, text) {
+            const messageDiv = document.createElement('div');
+            messageDiv.classList.add('message', sender);
+            messageDiv.textContent = text;
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight; 
+        }
+
+        function showTypingIndicator() {
+            const typingDiv = document.createElement('div');
+            typingDiv.classList.add('message', 'bot', 'typing-indicator');
+            typingDiv.id = 'typing-indicator';
+            typingDiv.textContent = 'El chatbot está escribiendo...';
+            chatMessages.appendChild(typingDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight; 
+        }
+
+        function hideTypingIndicator() {
+            const typingDiv = document.getElementById('typing-indicator');
+            if (typingDiv) {
+                typingDiv.remove();
+            }
+        }
+
+        async function sendMessage() {
+            const messageText = userInput.value.trim();
+            if (messageText === '') return;
+
+            addMessage('user', messageText); 
+            userInput.value = ''; 
+
+            conversationHistory.push({"role": "user", "content": messageText});
+
+            showTypingIndicator(); 
+
+            const API_URL = 'http://localhost:8000/chat'; 
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        messages: conversationHistory, 
+                        stream: true, 
+                        temperature: 0.5 
+                    }),
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Error HTTP! status: ${response.status}`);
+                }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder('utf-8');
+                let botMessageText = '';
+                const botMessageDiv = document.createElement('div');
+                botMessageDiv.classList.add('message', 'bot');
+                chatMessages.appendChild(botMessageDiv); 
+                chatMessages.scrollTop = chatMessages.scrollHeight; 
+
+                hideTypingIndicator(); 
+
+                let buffer = ''; 
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    const chunk = decoder.decode(value, { stream: true });
+                    buffer += chunk; 
+
+                    const lines = buffer.split('\n\n');
+                    buffer = lines.pop(); 
+
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            const data = line.substring(6); 
+                            if (data === '[DONE]') {
+                                reader.releaseLock(); 
+                                conversationHistory.push({"role": "assistant", "content": botMessageText});
+                                return; 
+                            }
+                            try {
+                                botMessageText += data;
+                                botMessageDiv.textContent = botMessageText;
+                                chatMessages.scrollTop = chatMessages.scrollHeight;
+                            } catch (e) {
+                                console.error("Error al parsear el chunk de streaming:", e, "Chunk:", data);
+                            }
+                        }
+                    }
+
+                    if (done) { 
+                        break; 
+                    }
+                }
+                conversationHistory.push({"role": "assistant", "content": botMessageText});
+
+            } catch (error) {
+                console.error('Error al comunicarse con el chatbot:', error);
+                hideTypingIndicator(); 
+                addMessage('bot', 'Lo siento, hubo un error al procesar tu solicitud. Por favor, inténtalo de nuevo más tarde.');
+            } finally {
+                sendButton.disabled = false;
+                userInput.disabled = false;
+                userInput.focus(); 
+            }
+        }
+
+        sendButton.addEventListener('click', sendMessage);
+        userInput.addEventListener('keypress', (event) => {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        });
+
+        window.addEventListener('load', () => {
+            userInput.focus();
+            addMessage('bot', '¡Hola! Soy tu asistente de mascotas. ¿En qué puedo ayudarte hoy sobre perros, gatos o cualquier otra mascota?');
+        });
+    </script>
+</body>
+</html>
