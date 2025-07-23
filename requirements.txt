@@ -8,6 +8,7 @@ cachetools==5.5.2
 certifi==2025.7.9
 charset-normalizer==3.4.2
 click==8.2.1
+langchain-google-genai 
 colorama==0.4.6
 dataclasses-json==0.6.7
 distro==1.9.0
