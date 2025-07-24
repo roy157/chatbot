@@ -1,6 +1,6 @@
 # chatbot_logic.py
 import os
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_openai import ChatOpenAI # Usaremos esta para Groq
 
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.output_parsers import JsonOutputParser
@@ -11,43 +11,45 @@ from typing import List, Dict, Any, AsyncGenerator
 from dotenv import load_dotenv
 load_dotenv()
 
-# Asegúrate de que GOOGLE_API_KEY esté configurada
-if not os.getenv("GOOGLE_API_KEY"):
-    raise ValueError("La variable de entorno GOOGLE_API_KEY no está configurada.")
+# Asegúrate de que GROQ_API_KEY esté configurada
+if not os.getenv("GROQ_API_KEY"):
+    raise ValueError("La variable de entorno GROQ_API_KEY no está configurada.")
 
 from models import PetInfo, BreedRecommendation, StructuredChatOutput
 
-# Inicializa el LLM para Google Gemini 1.5 Flash
-llm = ChatGoogleGenerativeAI(
-    model="gemini-1.5-flash", # Modelo de Google Gemini Flash
-    temperature=0.7, # Aumentamos la temperatura para darle más libertad a Flash y evitar bucles
-    google_api_key=os.getenv("GOOGLE_API_KEY")
+# Inicializa el LLM para Groq Cloud (llama3-8b-8192)
+llm = ChatOpenAI(
+    api_key=os.getenv("GROQ_API_KEY"),
+    base_url="https://api.groq.com/openai/v1", # URL específica de la API de Groq
+    model="llama3-8b-8192", # Modelo de LLaMA 3 de Groq.
+                           # Opcional: Podrías probar "mixtral-8x7b-32768" si lo prefieres para más potencia.
+    temperature=0.5, # Un buen punto de partida para este modelo
 )
 
 chat_prompt = ChatPromptTemplate.from_messages(
     [
         SystemMessage(
             """Eres el 'Asistente de Mascotas', un chatbot amable y servicial, especializado **EXCLUSIVAMENTE en perros y gatos**.
-Tu objetivo es **proporcionar información útil y directa** sobre el cuidado, salud, comportamiento y razas de perros y gatos.
+Tu objetivo principal es **proporcionar información útil y directa** sobre el cuidado, salud, comportamiento y razas de perros y gatos.
 
-**DIRECTRICES CLAVE:**
+**DIRECTRICES CLAVE PARA TODAS LAS INTERACCIONES (EXCEPTO SALUDO INICIAL QUE MANEJA EL MAIN.PY):**
 
-* **Sé conversacional y natural.**
-* **Prioriza la respuesta directa:** Responde a la pregunta del usuario con la información solicitada.
-* **Mantén el contexto de la conversación.** Utiliza el historial para responder de forma coherente.
+* **Mantén el contexto de la conversación en todo momento.** Cada respuesta debe estar directamente relacionada con la pregunta actual del usuario y con la información previa del diálogo.
+* **Sé siempre directo y útil.** Responde a la pregunta del usuario con la información solicitada.
+* **Evita pedir información que ya se te haya proporcionado o que sea evidente por el contexto.**
 * **Sé conciso pero completo.**
-* **Si la consulta NO es sobre perros o gatos, indica amablemente que tu conocimiento es limitado a estos animales.**
-* **Para temas de seguridad o inapropiados, rechaza y redirige.**
+* **Si la consulta NO es sobre perros o gatos, indica amablemente que tu conocimiento se limita a estos animales y redirige la conversación.**
+* **Para temas de seguridad o inapropiados, rechaza la solicitud de forma firme pero amable y redirige al bienestar animal.**
 
-**Tu meta es ser el asistente más útil y claro posible.**
-""" # SystemMessage más simplificado para Gemini Flash
+**Tu meta es ser el asistente más útil, claro y conversacional posible.**
+"""
         ),
         MessagesPlaceholder(variable_name="chat_history"),
         HumanMessage(content="{input}")
     ]
 )
 
-# structured_extraction_chain está ACTIVA
+# La sección structured_extraction_chain está ACTIVA
 structured_prompt = ChatPromptTemplate.from_messages(
     [
         SystemMessage(
@@ -63,10 +65,11 @@ json_parser = JsonOutputParser(pydantic_object=PetInfo)
 
 structured_extraction_chain = (
     structured_prompt.partial(format_instructions=json_parser.get_format_instructions())
-    | llm.with_structured_output(schema=PetInfo)
+    | llm.with_structured_output(schema=PetInfo) # Esto funciona con ChatOpenAI (Groq)
 )
 
 def process_input(input_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Extrae el 'input' y convierte el historial de chat a formato de mensaje de LangChain."""
     user_input = input_data.get("input", "")
     history = input_data.get("chat_history", [])
     
@@ -122,7 +125,7 @@ async def get_chatbot_response_json(messages: List[Dict[str, Any]], temperature:
         "id": f"chatcmpl-{os.urandom(16).hex()}",
         "object": "chat.completion",
         "created": int(os.times().elapsed),
-        "model": "gemini-1.5-flash", # Coincide con el modelo de Google Flash
+        "model": "llama3-8b-8192", # Coincide con el modelo de Groq
         "choices": [{
             "index": 0,
             "message": {
