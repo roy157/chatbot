@@ -20,6 +20,7 @@ origins = [
     "http://127.0.0.1:8000",
     "null",
     "http://localhost:5500",
+    "https://chatbot-mascotas.netlify.app",
     "http://127.0.0.1:5500"
 ]
 
